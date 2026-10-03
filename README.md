@@ -8,6 +8,7 @@
   <a href="../../releases"><img alt="Release" src="https://img.shields.io/github/v/release/MatinSenPai/Gemini-Config-Checker?include_prereleases&label=release"></a>
   <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/MatinSenPai/Gemini-Config-Checker/total?label=downloads&color=ee2b38"></a>
   <a href="../../actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MatinSenPai/Gemini-Config-Checker/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-111"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-111">
 </p>
 
@@ -256,4 +257,7 @@ VERSION              the version the release workflow publishes
 
 ## Disclaimer
 This tool measures connectivity and regional availability. Use it in accordance with the laws of your country and the terms of the services you access.
-Free configs are run by unknown third parties; do not send sensitive data through them. No license has been chosen yet.
+Free configs are run by unknown third parties; do not send sensitive data through them. 
+
+## License
+[MIT](LICENSE). The bundled engine ([Xray-core](https://github.com/XTLS/Xray-core)) and fonts keep their own licenses (MPL-2.0 and SIL OFL).

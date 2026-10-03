@@ -10,6 +10,7 @@
   <a href="../../releases"><img alt="Release" src="https://img.shields.io/github/v/release/MatinSenPai/Gemini-Config-Checker?include_prereleases&label=release"></a>
   <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/MatinSenPai/Gemini-Config-Checker/total?label=downloads&color=ee2b38"></a>
   <a href="../../actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MatinSenPai/Gemini-Config-Checker/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-111"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-111">
 </p>
 
@@ -255,6 +256,9 @@ VERSION              نسخه‌ای که workflow انتشار منتشر می�
 
 ## سلب مسئولیت
 این ابزار اتصال و دسترس‌پذیری ریجنی را اندازه می‌گیرد. مطابق قوانین کشورت و شرایط سرویس‌هایی که به آن‌ها دسترسی داری استفاده کن.
-کانفیگ‌های رایگان را اشخاص ناشناس اداره می‌کنند؛ داده‌ی حساس از آن‌ها رد نکن. هنوز لایسنسی انتخاب نشده است.
+کانفیگ‌های رایگان را اشخاص ناشناس اداره می‌کنند؛ داده‌ی حساس از آن‌ها رد نکن. 
+
+## لایسنس
+[MIT](LICENSE). موتور داخل برنامه ([Xray-core](https://github.com/XTLS/Xray-core)) و فونت‌ها لایسنس خودشان را دارند (MPL-2.0 و SIL OFL).
 
 </div>
