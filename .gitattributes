@@ -1,0 +1,9 @@
+# Same line endings everywhere (CI runs gofmt on Linux; contributors use Windows).
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.woff2 binary
+*.apk  binary
+*.so   binary

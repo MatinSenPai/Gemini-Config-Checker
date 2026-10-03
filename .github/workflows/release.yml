@@ -259,9 +259,14 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
+      # GitHub's Ubuntu runner already ships the Android SDK (ANDROID_HOME) with command-line tools, so no setup action is
+      # needed; just accept the licences and make sure the platform and build-tools this project uses are present.
       - name: Android SDK packages
-        run: sdkmanager "platforms;android-35" "build-tools;34.0.0"
+        run: |
+          sdkmanager="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | sort -V | tail -1)"
+          echo "using $sdkmanager"
+          yes | "$sdkmanager" --licenses > /dev/null || true
+          "$sdkmanager" "platforms;android-35" "build-tools;34.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
