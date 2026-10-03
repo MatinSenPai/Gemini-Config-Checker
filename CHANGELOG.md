@@ -9,6 +9,8 @@ All notable changes are documented here. The format follows [Keep a Changelog](h
 ### Fixed
 - The browser is detected again on every check (a browser installed while the app was open is found), in more places on every OS (Windows Program Files / per-user installs, macOS ~/Applications, Linux snap and absolute paths when a launcher starts the app with a short PATH, Vivaldi, Chromium), and `GCC_BROWSER` can point at one. Android now says plainly that apps cannot drive an installed browser, instead of reporting it as missing.
 
+- Where no controllable browser exists (Android, headless servers) the check type is locked to connectivity-only, a notice says so before the scan starts, and the button reads "start connectivity test" instead of silently switching modes.
+
 ### Added
 - **Simple and Advanced modes** with a prominent animated switch. Simple tests each of your own configs directly, with no chain (anti-DPI profile applied to every config, links / subscription URL / base64 accepted, full-config export per config). Advanced is the chained scan below.
 - Chained scan: every free config is tested behind the user's own base config.

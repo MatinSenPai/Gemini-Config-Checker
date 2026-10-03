@@ -372,7 +372,8 @@ body[data-level=simple] .cz[data-only=advanced] *,body[data-level=advanced] .cz[
         <aside class="run">
           <span class="idx">RUN</span>
           <p>همه‌چیز آماده است؟ اسکن را شروع کن؛ نتایج زنده در تب «نتایج» می‌آیند.</p>
-          <button class="btn pri lg block" id="go"><svg viewBox="0 0 24 24"><path d="m7 4 13 8-13 8Z"/></svg>شروع اسکن</button>
+          <div class="callout" id="noBr" hidden style="margin:0 0 14px"><div><b>فقط اتصال، نه ریجن.</b> روی این دستگاه مرورگر قابل‌کنترلی نیست (اندروید اجازه‌ی کنترل مرورگر نصب‌شده را به برنامه‌ها نمی‌دهد)، پس فقط می‌سنجیم کانفیگ به Google می‌رسد یا نه و نتیجه «متصل» می‌شود، نه «سالم». ریجن واقعی AI Studio و Gemini را با نسخه‌ی دسکتاپ یا وب روی کامپیوتر بسنج.</div></div>
+          <button class="btn pri lg block" id="go"><svg viewBox="0 0 24 24"><path d="m7 4 13 8-13 8Z"/></svg><span id="goLbl">شروع اسکن</span></button>
           <button class="btn danger lg block" id="stop" hidden><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>توقف اسکن</button>
           <div class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
           <ul class="facts">
@@ -589,7 +590,10 @@ function render() {
   renderAuth();
   const noBrowser = S.browser === false, ms = $('mode');
   ms.querySelector('option[value=region]').disabled = noBrowser;
-  if (noBrowser && ms.value === 'region') { ms.value = 'reach'; saveForm(); }
+  if (noBrowser && ms.value !== 'reach') { ms.value = 'reach'; saveForm(); }
+  ms.disabled = noBrowser; // nothing to choose: the region check cannot run here
+  $('noBr').hidden = !noBrowser;
+  $('goLbl').textContent = noBrowser ? 'شروع تست اتصال' : 'شروع اسکن';
   $('reachBanner').hidden = S.mode !== 'reach' || S.state === 'idle';
   $('tGoodLbl').textContent = goodLabel();
   const run = S.state === 'running', res = S.results || [], good = goodList().length, idle = S.state === 'idle';
