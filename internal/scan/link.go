@@ -77,7 +77,8 @@ func parseVmess(b64 string) (string, obj, error) {
 		return "", nil, errors.New("bad vmess fields")
 	}
 	q := url.Values{"host": {s("host")}, "path": {s("path")}, "sni": {s("sni")}, "alpn": {s("alpn")},
-		"fp": {s("fp")}, "serviceName": {s("path")}}
+		"fp": {s("fp")}, "serviceName": {s("path")}, "fm": {s("fm")}, "finalmask": {s("finalmask")},
+		"ciphers": {firstNonEmpty(s("ciphers"), s("cipherSuites"))}}
 	sec := ""
 	if s("tls") == "tls" {
 		sec = "tls"
@@ -157,22 +158,22 @@ func buildStream(network, security string, q url.Values) (obj, error) {
 	default:
 		return nil, errors.New("unsupported transport " + network)
 	}
-	if fm := firstNonEmpty(q.Get("fm"), q.Get("finalmask")); fm != "" { // anti-DPI masks travel in the link as URL-encoded JSON
+	if fm := qv(q, "fm", "finalmask"); fm != "" { // anti-DPI masks travel in the link as URL-encoded JSON
 		var v any
 		if err := json.Unmarshal([]byte(fm), &v); err != nil {
 			return nil, errors.New("finalmask داخل لینک JSON معتبر نیست")
 		}
 		s["finalmask"] = v
 	}
-	fp := firstNonEmpty(q.Get("fp"), "chrome")
+	fp := firstNonEmpty(qv(q, "fp", "fingerprint"), "chrome")
 	switch security {
 	case "tls":
 		tls := obj{"serverName": firstNonEmpty(q.Get("sni"), host), "fingerprint": fp,
 			"allowInsecure": q.Get("allowInsecure") == "1" || q.Get("insecure") == "1"}
-		if a := q.Get("alpn"); a != "" {
-			tls["alpn"] = strings.Split(a, ",")
+		if a := qv(q, "alpn"); a != "" {
+			tls["alpn"] = splitList(a)
 		}
-		if c := firstNonEmpty(q.Get("ciphers"), q.Get("cipherSuites")); c != "" {
+		if c := qv(q, "ciphers", "cipherSuites", "cipher_suites", "cs"); c != "" {
 			tls["cipherSuites"] = c
 		}
 		s["tlsSettings"] = tls
@@ -198,6 +199,18 @@ func firstNonEmpty(a ...string) string {
 	for _, s := range a {
 		if s != "" {
 			return s
+		}
+	}
+	return ""
+}
+
+// qv reads a query parameter under any of the given names, ignoring case (links in the wild spell them differently).
+func qv(q url.Values, names ...string) string {
+	for _, n := range names {
+		for k, v := range q {
+			if strings.EqualFold(k, n) && len(v) > 0 && strings.TrimSpace(v[0]) != "" {
+				return strings.TrimSpace(v[0])
+			}
 		}
 	}
 	return ""

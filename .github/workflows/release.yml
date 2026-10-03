@@ -353,6 +353,7 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: ${{ needs.meta.outputs.tag }}
           body_path: notes.md
-          prerelease: ${{ startsWith(needs.meta.outputs.version, '0.') }}
+          prerelease: ${{ contains(needs.meta.outputs.version, '-') }}
+          make_latest: true
           files: artifacts/*
           fail_on_unmatched_files: true

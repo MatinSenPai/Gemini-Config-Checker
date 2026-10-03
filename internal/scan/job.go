@@ -86,8 +86,8 @@ func Start(rq Request) error {
 	}
 	if rq.Mode != "reach" {
 		rq.Mode = "region"
-		if !hasBrowser() {
-			return errors.New("روی این دستگاه مرورگر Chrome / Edge / Brave پیدا نشد؛ حالت «فقط اتصال» را انتخاب کن")
+		if _, err := findBrowser(); err != nil {
+			return errors.New(err.Error() + "؛ یا حالت «فقط اتصال» را انتخاب کن")
 		}
 		if !LoggedIn() {
 			return errors.New("اول با حساب Google وارد شو")
@@ -120,15 +120,11 @@ func Start(rq Request) error {
 	return nil
 }
 
-var (
-	browserOnce sync.Once
-	browserOK   bool
-)
-
-// hasBrowser reports whether a Chromium browser is installed (the region check needs one; Android/Termux has none).
+// hasBrowser reports whether a Chromium browser the region check can drive is installed. Not cached: a browser
+// installed after the app started is picked up at once.
 func hasBrowser() bool {
-	browserOnce.Do(func() { _, err := findBrowser(); browserOK = err == nil })
-	return browserOK
+	_, err := findBrowser()
+	return err == nil
 }
 
 // run returns the final state and message. The browser is fully shut down before it returns, so a new scan can

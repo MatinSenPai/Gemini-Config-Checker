@@ -566,6 +566,10 @@ function renderAuth() {
   const btn = (label, cls, fn) => { const b = el('button', 'btn ' + cls, label); b.onclick = fn; return b; };
   const note = (cls, txt) => { const c = el('div', 'callout ' + cls), d = el('div'); d.textContent = txt; c.append(d); c.style.margin = '0 0 12px'; return c; };
   const a = S.auth || 'none';
+  if (S.browser === false && a !== 'ok') { // nothing here can drive a browser (Android, or none installed): sign-in is pointless
+    box.append(note('', 'مرورگر قابل‌کنترلی پیدا نشد. روی اندروید برنامه‌ها نمی‌توانند مرورگر نصب‌شده را کنترل کنند و فقط حالت «فقط اتصال» کار می‌کند؛ برای بررسی ریجن با حساب Google از نسخه‌ی دسکتاپ یا وب روی کامپیوتر استفاده کن. روی کامپیوتر، Chrome / Edge / Brave را نصب کن یا مسیرش را در متغیر GCC_BROWSER بگذار.'));
+    return;
+  }
   if (a === 'ok') {
     box.append(note('ok', 'حساب Google متصل است. تست‌ها با همین حساب انجام می‌شوند.'),
       btn('حذف حساب از برنامه', '', async () => { await api.logout(); poll(); toast('ورود ذخیره‌شده‌ی برنامه پاک شد (حساب‌های مرورگر اصلی‌ات دست نخورد)'); }));

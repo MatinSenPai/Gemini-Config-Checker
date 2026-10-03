@@ -155,7 +155,11 @@ func ExtractProfile(text string) (Profile, error) {
 	}
 	p := Profile{Enabled: true}
 	found := false
-	for _, o := range b.entryHops() {
+	hops := b.entryHops()
+	if len(hops) == 0 {
+		hops = b.Outs
+	}
+	for _, o := range hops {
 		ss := sub(o, "streamSettings")
 		if ss == nil {
 			continue
@@ -165,22 +169,19 @@ func ExtractProfile(text string) (Profile, error) {
 				p.Finalmask, found = string(j), true
 			}
 		}
-		if t := sub(ss, "tlsSettings"); t != nil {
-			if s, _ := t["fingerprint"].(string); s != "" {
+		for _, k := range []string{"tlsSettings", "realitySettings"} {
+			t := sub(ss, k)
+			if t == nil {
+				continue
+			}
+			if s := listValue(t, ":", "fingerprint", "fp"); s != "" {
 				p.Fingerprint = s
 				found = found || s == "unsafe" // any other fingerprint (chrome is the parser's default) is not an anti-DPI value by itself
 			}
-			switch a := t["alpn"].(type) {
-			case []any:
-				var l []string
-				for _, v := range a {
-					l = append(l, v.(string))
-				}
-				p.ALPN, found = strings.Join(l, ","), found || len(l) > 0
-			case []string:
-				p.ALPN, found = strings.Join(a, ","), found || len(a) > 0
+			if s := listValue(t, ",", "alpn"); s != "" {
+				p.ALPN, found = s, true
 			}
-			if s, _ := t["cipherSuites"].(string); s != "" {
+			if s := listValue(t, ":", "cipherSuites", "ciphers", "cipher_suites", "cipherSuite"); s != "" {
 				p.CipherSuites, found = s, true
 			}
 		}
@@ -189,4 +190,37 @@ func ExtractProfile(text string) (Profile, error) {
 		return Profile{}, errors.New("در این کانفیگ مقدار ضد فیلتری (finalmask / cipherSuites / alpn / fingerprint) پیدا نشد")
 	}
 	return p, nil
+}
+
+// listValue reads a setting that configs write either as a string or as an array (cipher suites, ALPN), under any of
+// the given key spellings (case-insensitive), and returns it joined by sep.
+func listValue(m obj, sep string, keys ...string) string {
+	for k, v := range m {
+		for _, want := range keys {
+			if !strings.EqualFold(k, want) {
+				continue
+			}
+			switch x := v.(type) {
+			case string:
+				if s := strings.TrimSpace(x); s != "" {
+					return s
+				}
+			case []any:
+				var l []string
+				for _, e := range x {
+					if s, ok := e.(string); ok && strings.TrimSpace(s) != "" {
+						l = append(l, strings.TrimSpace(s))
+					}
+				}
+				if len(l) > 0 {
+					return strings.Join(l, sep)
+				}
+			case []string:
+				if len(x) > 0 {
+					return strings.Join(x, sep)
+				}
+			}
+		}
+	}
+	return ""
 }

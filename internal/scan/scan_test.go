@@ -420,3 +420,18 @@ func TestPersist(t *testing.T) {
 		t.Fatal("the timer must restart after a break")
 	}
 }
+
+func TestExtractProfileSpellings(t *testing.T) {
+	const suites = "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384"
+	for name, in := range map[string]string{
+		"array":   `{"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"h.example","port":443,"users":[{"id":"u"}]}]},"streamSettings":{"network":"ws","security":"tls","tlsSettings":{"alpn":"http/1.1","cipherSuites":["TLS_AES_128_GCM_SHA256","TLS_AES_256_GCM_SHA384"]}}}]}`,
+		"ciphers": `{"outbounds":[{"protocol":"vless","settings":{"vnext":[{"address":"h.example","port":443,"users":[{"id":"u"}]}]},"streamSettings":{"network":"ws","security":"tls","tlsSettings":{"Ciphers":"` + suites + `"}}}]}`,
+		"link":    "vless://u@h.example:443?security=tls&type=ws&path=%2F&CipherSuites=" + suites,
+		"vmess":   "vmess://" + base64.StdEncoding.EncodeToString([]byte(`{"v":"2","add":"h.example","port":"443","id":"u","net":"ws","tls":"tls","path":"/","ciphers":"`+suites+`"}`)),
+	} {
+		p, err := ExtractProfile(in)
+		if err != nil || p.CipherSuites != suites {
+			t.Errorf("%s: got %q, %v", name, p.CipherSuites, err)
+		}
+	}
+}

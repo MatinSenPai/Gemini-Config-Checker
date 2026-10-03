@@ -131,24 +131,47 @@ func profileDir() string {
 	return filepath.Join(d, "GeminiConfigChecker", "browser-profile")
 }
 
+// findBrowser locates a Chromium-based browser the region check can drive over DevTools. GCC_BROWSER (a path) wins
+// over the search, for installs in unusual places.
 func findBrowser() (string, error) {
+	if p := os.Getenv("GCC_BROWSER"); p != "" {
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+	}
+	if runtime.GOOS == "android" {
+		// Android apps cannot start or remote-control another app's browser, so the region check has no browser to use
+		// even when Chrome is installed; the app reports what it found in GCC_ANDROID_BROWSERS.
+		return "", errors.New("روی اندروید مرورگر نصب‌شده قابل کنترل نیست؛ حالت «فقط اتصال» را بزن یا بررسی ریجن را روی کامپیوتر انجام بده")
+	}
 	var c []string
+	home, _ := os.UserHomeDir()
 	switch runtime.GOOS {
 	case "windows":
-		for _, root := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"), os.Getenv("LOCALAPPDATA")} {
+		for _, root := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramW6432"), os.Getenv("ProgramFiles(x86)"), os.Getenv("LOCALAPPDATA")} {
 			if root == "" {
 				continue
 			}
-			c = append(c, filepath.Join(root, `Google\Chrome\Application\chrome.exe`), filepath.Join(root, `Microsoft\Edge\Application\msedge.exe`),
-				filepath.Join(root, `BraveSoftware\Brave-Browser\Application\brave.exe`))
+			c = append(c, filepath.Join(root, `GoogleChromeApplicationchrome.exe`), filepath.Join(root, `MicrosoftEdgeApplicationmsedge.exe`),
+				filepath.Join(root, `BraveSoftwareBrave-BrowserApplicationrave.exe`), filepath.Join(root, `ChromiumApplicationchrome.exe`),
+				filepath.Join(root, `VivaldiApplicationivaldi.exe`))
 		}
 	case "darwin":
-		c = []string{"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-			"/Applications/Brave Browser.app/Contents/MacOS/Brave Browser", "/Applications/Chromium.app/Contents/MacOS/Chromium"}
+		for _, dir := range []string{"/Applications", filepath.Join(home, "Applications")} {
+			c = append(c, dir+"/Google Chrome.app/Contents/MacOS/Google Chrome", dir+"/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+				dir+"/Brave Browser.app/Contents/MacOS/Brave Browser", dir+"/Chromium.app/Contents/MacOS/Chromium", dir+"/Vivaldi.app/Contents/MacOS/Vivaldi")
+		}
 	default:
-		for _, n := range []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser"} {
+		names := []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "brave", "vivaldi"}
+		for _, n := range names {
 			if p, err := exec.LookPath(n); err == nil {
 				c = append(c, p)
+			}
+		}
+		// A desktop launcher often starts with a short PATH, so look in the usual places directly as well.
+		for _, dir := range []string{"/usr/bin", "/usr/local/bin", "/snap/bin", "/opt/google/chrome", "/opt/brave.com/brave", "/opt/microsoft/msedge"} {
+			for _, n := range append(names, "chrome", "msedge") {
+				c = append(c, filepath.Join(dir, n))
 			}
 		}
 	}
