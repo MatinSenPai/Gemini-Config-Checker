@@ -10,6 +10,7 @@ name: Release
 on:
   push:
     branches: [main, master]
+    paths: [VERSION] # only a version bump releases; ordinary pushes are covered by CI
     tags: ["v*"]
   workflow_dispatch:
     inputs:

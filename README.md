@@ -235,9 +235,9 @@ make dist VERSION=0.1.0        # cross-compiled web binaries for all targets
 ## Releases and CI
 * `ci.yml`: gofmt, vet and tests on Linux / Windows / macOS; cross-compile check for every web target.
 * `release.yml`: builds desktop apps (Windows amd64/arm64, macOS universal, Linux amd64), web servers (Linux, Windows, macOS) and the Android APK, writes `SHA256SUMS.txt`
-  and publishes the GitHub release `v<VERSION>`. **It runs by itself on every push to `main`**: the version is read from the `VERSION` file; if that release does not exist yet it is
+  and publishes the GitHub release `v<VERSION>`. **It runs by itself only when a push to `main` changes `VERSION`** (ordinary pushes run just `ci.yml`): if that release does not exist yet it is
   built and published, otherwise the run does nothing. To ship a new version, bump `VERSION` and `CHANGELOG.md` and push. A tag `vX.Y.Z` matching `VERSION`, or
-  *Actions → Release → Run workflow* (tick "publish"), also works.
+  *Actions → Release → Run workflow* (tick "publish", also how you retry a failed release), works too.
 * Optional repository secrets keep one Android signature across releases: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
 
 ## Project layout
