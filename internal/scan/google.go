@@ -123,66 +123,6 @@ func Logout() error {
 	return os.RemoveAll(profileDir())
 }
 
-func profileDir() string {
-	d, err := os.UserConfigDir()
-	if err != nil {
-		d = os.TempDir()
-	}
-	return filepath.Join(d, "GeminiConfigChecker", "browser-profile")
-}
-
-// findBrowser locates a Chromium-based browser the region check can drive over DevTools. GCC_BROWSER (a path) wins
-// over the search, for installs in unusual places.
-func findBrowser() (string, error) {
-	if p := os.Getenv("GCC_BROWSER"); p != "" {
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-	}
-	if runtime.GOOS == "android" {
-		// Android apps cannot start or remote-control another app's browser, so the region check has no browser to use
-		// even when Chrome is installed; the app reports what it found in GCC_ANDROID_BROWSERS.
-		return "", errors.New("روی اندروید مرورگر نصب‌شده قابل کنترل نیست؛ حالت «فقط اتصال» را بزن یا بررسی ریجن را روی کامپیوتر انجام بده")
-	}
-	var c []string
-	home, _ := os.UserHomeDir()
-	switch runtime.GOOS {
-	case "windows":
-		for _, root := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramW6432"), os.Getenv("ProgramFiles(x86)"), os.Getenv("LOCALAPPDATA")} {
-			if root == "" {
-				continue
-			}
-			c = append(c, filepath.Join(root, `GoogleChromeApplicationchrome.exe`), filepath.Join(root, `MicrosoftEdgeApplicationmsedge.exe`),
-				filepath.Join(root, `BraveSoftwareBrave-BrowserApplicationrave.exe`), filepath.Join(root, `ChromiumApplicationchrome.exe`),
-				filepath.Join(root, `VivaldiApplicationivaldi.exe`))
-		}
-	case "darwin":
-		for _, dir := range []string{"/Applications", filepath.Join(home, "Applications")} {
-			c = append(c, dir+"/Google Chrome.app/Contents/MacOS/Google Chrome", dir+"/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
-				dir+"/Brave Browser.app/Contents/MacOS/Brave Browser", dir+"/Chromium.app/Contents/MacOS/Chromium", dir+"/Vivaldi.app/Contents/MacOS/Vivaldi")
-		}
-	default:
-		names := []string{"google-chrome", "google-chrome-stable", "chromium", "chromium-browser", "microsoft-edge", "microsoft-edge-stable", "brave-browser", "brave", "vivaldi"}
-		for _, n := range names {
-			if p, err := exec.LookPath(n); err == nil {
-				c = append(c, p)
-			}
-		}
-		// A desktop launcher often starts with a short PATH, so look in the usual places directly as well.
-		for _, dir := range []string{"/usr/bin", "/usr/local/bin", "/snap/bin", "/opt/google/chrome", "/opt/brave.com/brave", "/opt/microsoft/msedge"} {
-			for _, n := range append(names, "chrome", "msedge") {
-				c = append(c, filepath.Join(dir, n))
-			}
-		}
-	}
-	for _, p := range c {
-		if _, err := os.Stat(p); err == nil {
-			return p, nil
-		}
-	}
-	return "", errors.New("مرورگر Chrome / Edge / Brave پیدا نشد؛ یکی از آن‌ها را نصب کن")
-}
-
 // profileMu: only one browser may use the isolated profile at a time (restore, sign-in, scan).
 var profileMu sync.Mutex
 
@@ -248,6 +188,9 @@ func launch(headless bool, url string, extra ...string) (*browser, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !headless && runtime.GOOS == "linux" && os.Getenv("DISPLAY") == "" && os.Getenv("WAYLAND_DISPLAY") == "" {
+		return nil, errors.New("این سیستم صفحه‌ی گرافیکی ندارد (DISPLAY خالی است)؛ ورود به Google را روی یک دسکتاپ انجام بده")
+	}
 	closeStale()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -259,6 +202,9 @@ func launch(headless bool, url string, extra ...string) (*browser, error) {
 		"--no-first-run", "--no-default-browser-check", "--disable-sync", "--mute-audio"}
 	if headless {
 		args = append(args, "--headless=new")
+	}
+	if runtime.GOOS == "linux" && os.Geteuid() == 0 {
+		args = append(args, "--no-sandbox") // Chromium refuses to start as root otherwise (containers, servers)
 	}
 	args = append(args, extra...)
 	cmd := exec.Command(exe, append(args, url)...)

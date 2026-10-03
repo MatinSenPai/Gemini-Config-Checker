@@ -202,7 +202,8 @@ Same UI, connectivity mode only, default Simple. The foreground notification kee
 
 | Symptom | What to do |
 |---|---|
-| *"No Chrome / Edge / Brave found"* | Install one, or choose **connectivity only**. |
+| *"No Chrome / Edge / Brave found"* | Install one, or choose **connectivity only**. Searched: Windows Program Files / per-user installs / the registry "App Paths" (Chrome, Edge, Brave, Chromium, Vivaldi, Opera); macOS `/Applications`, `~/Applications` and Spotlight; Linux `PATH`, `/usr/bin`, `/snap/bin`, `/opt/...`. A browser somewhere else: set `GCC_BROWSER` (or `CHROME_BIN`) to its executable. Flatpak browsers cannot be driven. |
+| Linux: sign-in window does not open | The window needs a graphical session (`DISPLAY` / `WAYLAND_DISPLAY`); on a server, sign in on a desktop. Snap browsers work (the profile is kept under `~/snap/<browser>/common`); as root the browser starts with `--no-sandbox`. |
 | *"Google session expired, sign in again"* | Press **Sign in with Google** again. A sign-in redirect must persist for several seconds before the app believes it, so a brief redirect no longer aborts a scan; if it still happens, Google really asked you to sign in again (often a security check after many IPs). |
 | Everything times out | The base config (advanced) or the configs themselves (simple) cannot connect. Inside a filtered network turn the **anti-DPI profile** on and try a **clean IP**; make sure the base config works in your normal client. |
 | AI Studio passes but Gemini is blocked (or the reverse) | They use different region rules. Change *"Healthy" means* if you only need one. |
@@ -211,6 +212,7 @@ Same UI, connectivity mode only, default Simple. The foreground notification kee
 | Windows SmartScreen / macOS Gatekeeper warns | The builds are unsigned. Use *Run anyway* / right-click → Open (see [Download](#download-and-install)). |
 | Linux: window does not open | Install `libgtk-3-0` and `libwebkit2gtk-4.1-0`, or use the web server build. |
 | Android: install blocked | Allow "Install unknown apps" for the app you used to open the APK. |
+| Android: *"App not installed as package appears to be invalid"* | The file is damaged or incomplete (a half-finished download, or a repository page saved as `.apk`). Download it again, check its size and `SHA256SUMS.txt`, or install it from a computer with `adb install file.apk`. It also appears when an APK signed with a different key is installed over an older build: uninstall the old app first. |
 | Start over completely | **Remove account from app**, then delete the app's local storage (Windows: `%AppData%\GeminiConfigChecker`; macOS: `~/Library/Application Support/GeminiConfigChecker`; Linux: `~/.config/GeminiConfigChecker`). |
 
 ## Privacy and security
