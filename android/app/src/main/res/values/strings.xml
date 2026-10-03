@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gemini Config Checker</string>
+    <string name="channel_name">Engine</string>
+    <string name="notification_text">Scanner engine is running</string>
+    <string name="stop">Stop</string>
+    <string name="saved">Saved</string>
+</resources>

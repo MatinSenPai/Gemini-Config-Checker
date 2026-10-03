@@ -1,0 +1,7 @@
+.gradle/
+build/
+local.properties
+*.keystore
+*.jks
+# the engine binary is built by CI / `make android`, never committed
+app/src/main/jniLibs/

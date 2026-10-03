@@ -1,0 +1,10 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "GeminiConfigChecker",
+  "outputfilename": "GeminiConfigChecker",
+  "info": {
+    "productName": "Gemini Config Checker",
+    "productVersion": "0.1.0",
+    "comments": "Chain region scanner for free proxy configs"
+  }
+}

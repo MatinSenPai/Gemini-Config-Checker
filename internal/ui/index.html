@@ -1,0 +1,747 @@
+﻿<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gemini Config Checker</title>
+<link rel="icon" type="image/png" href="logo.png">
+<style>
+@font-face{font-family:"Vazirmatn";src:url(fonts/Vazirmatn-Regular.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Vazirmatn";src:url(fonts/Vazirmatn-Medium.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Vazirmatn";src:url(fonts/Vazirmatn-Bold.woff2) format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(fonts/JetBrainsMono-400.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"JetBrains Mono";src:url(fonts/JetBrainsMono-600.woff2) format("woff2");font-weight:600;font-display:swap}
+
+/* Black, white, red. Nothing else. */
+:root{
+  --bg:#0a0a0a;--panel:#111;--hover:#161616;--line:#2b2b2b;--line2:#444;--tx:#f4f4f1;--mut:#8d8d88;--ink:#0a0a0a;
+  --red:#ee2b38;--red-d:#c41a26;
+  --fa:"Vazirmatn","Segoe UI",Tahoma,sans-serif;--mono:"JetBrains Mono","Cascadia Mono",Consolas,monospace;
+  color-scheme:dark;
+}
+:root[data-theme=light]{
+  --bg:#f6f5f1;--panel:#fff;--hover:#efeee9;--line:#d5d3cb;--line2:#9b9990;--tx:#0a0a0a;--mut:#66655f;--ink:#f6f5f1;
+  --red:#d4121f;--red-d:#a80d18;color-scheme:light;
+}
+*{box-sizing:border-box;border-radius:0}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--tx);font:400 14px/1.75 var(--fa);overflow:hidden}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+::selection{background:var(--red);color:#fff}
+.shell{display:flex;flex-direction:column;height:100vh}
+
+/* top bar */
+.top{display:flex;align-items:stretch;gap:28px;padding:0 28px;border-bottom:1px solid var(--line);background:var(--bg);flex:none}
+.brand{display:flex;align-items:center;gap:12px;padding:12px 0;white-space:nowrap}
+.brand .mark{display:block;height:28px;width:auto;mix-blend-mode:screen} /* black background of the artwork drops out on the dark header */
+:root[data-theme=light] .brand .mark{filter:invert(1) hue-rotate(180deg);mix-blend-mode:multiply} /* white fangs become ink, the red link stays red */
+.brand b{font:600 14px var(--mono);letter-spacing:.12em}
+.brand b i{font-style:normal;color:var(--red)}
+.brand span{font-size:12px;color:var(--mut);padding-inline-start:12px;border-inline-start:1px solid var(--line)}
+.nav{display:flex;gap:4px;margin-inline-start:12px}
+.nav button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:9px;padding:0 16px;color:var(--mut);font-weight:500;border-bottom:2px solid transparent;margin-bottom:-1px;transition:color .12s}
+.nav button:hover{color:var(--tx)}
+.nav button:focus-visible{outline:2px solid var(--red);outline-offset:-4px}
+.nav button.on{color:var(--tx);border-bottom-color:var(--red)}
+.nav button i{font:normal 11px var(--mono);color:var(--mut)}
+.nav button.on i{color:var(--red)}
+.nav .cnt{font:600 11px var(--mono);background:var(--red);color:#fff;padding:0 6px;min-width:20px;text-align:center;line-height:18px}
+.top-r{margin-inline-start:auto;display:flex;align-items:center;gap:18px}
+.status{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--mut)}
+.status b{color:var(--tx);font-weight:600;margin-inline-end:8px}
+.pulse{width:8px;height:8px;background:var(--line2);flex:none}
+.status.run .pulse{background:var(--red);animation:blink 1s steps(2,jump-none) infinite}
+.status.done .pulse{background:var(--tx)}.status.bad .pulse{background:var(--red)}
+@keyframes blink{50%{opacity:.25}}
+.theme{all:unset;box-sizing:border-box;cursor:pointer;font:500 12px var(--mono);color:var(--mut);border:1px solid var(--line);padding:3px 10px;white-space:nowrap}
+.theme:hover{color:var(--tx);border-color:var(--tx)}
+.theme:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+/* run bar */
+.runbar{display:flex;align-items:center;gap:24px;padding:10px 28px;background:var(--panel);border-bottom:1px solid var(--line);flex:none}
+.runbar .info{flex:1;min-width:0}
+.runbar .line{display:flex;justify-content:space-between;gap:12px;font-size:12.5px;margin-bottom:6px}
+.runbar .line b{font-weight:500}
+.runbar .line span{font-family:var(--mono);color:var(--mut)}
+.prog{height:3px;background:var(--line)}
+.prog i{display:block;height:100%;width:0;background:var(--red);transition:width .4s}
+
+main{flex:1;overflow:auto;padding:40px 28px 64px;scrollbar-color:var(--line2) transparent}
+.ws{display:none;max-width:1040px;margin:0 auto}
+.ws.on{display:block;animation:in .2s ease both}
+@keyframes in{from{opacity:0}to{opacity:1}}
+
+/* page head */
+.ph{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;flex-wrap:wrap;padding-bottom:22px;margin-bottom:28px;border-bottom:1px solid var(--tx)}
+.ph .tag{font:600 11px var(--mono);letter-spacing:.2em;color:var(--red);display:block;margin-bottom:6px}
+.ph h1{margin:0;font-size:32px;line-height:1.3;font-weight:700;letter-spacing:-.01em}
+.ph p{margin:6px 0 0;color:var(--mut);max-width:560px}
+.acts{display:flex;gap:8px;flex-wrap:wrap}
+
+/* controls */
+.btn{cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:600;font-size:13.5px;background:transparent;border:1px solid var(--tx);color:var(--tx);padding:7px 18px;transition:background .12s,color .12s,border-color .12s}
+.btn:hover:not(:disabled){background:var(--tx);color:var(--ink)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:square}
+.btn.pri{background:var(--red);border-color:var(--red);color:#fff}
+.btn.pri:hover:not(:disabled){background:var(--red-d);border-color:var(--red-d);color:#fff}
+.btn.danger{border-color:var(--red);color:var(--red)}
+.btn.danger:hover:not(:disabled){background:var(--red);color:#fff}
+.btn.sm{padding:1px 11px;font-size:12.5px;font-weight:500;border-color:var(--line2);color:var(--mut)}
+.btn.sm:hover:not(:disabled){border-color:var(--tx)}
+.btn.lg{padding:12px 26px;font-size:15px}
+.btn.block{width:100%}
+input[type=text],input[type=number],input:not([type]),select,textarea{width:100%;background:var(--panel);border:1px solid var(--line2);padding:9px 12px;direction:ltr;text-align:left;outline:none;font-size:13px;transition:border-color .12s}
+input.mono,textarea.mono{font-family:var(--mono);font-size:12.5px}
+input:focus,select:focus,textarea:focus{border-color:var(--tx)}
+input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--red);outline-offset:1px}
+textarea{min-height:96px;resize:vertical;line-height:1.6}
+select{cursor:pointer;direction:rtl;text-align:right}
+label.f{display:block;font-size:12px;font-weight:500;color:var(--mut);margin-bottom:6px}
+
+/* scan layout */
+.cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:48px;align-items:start}
+.sec{padding-bottom:28px;margin-bottom:28px;border-bottom:1px solid var(--line)}
+.sec:last-child{border:0;margin:0;padding:0}
+.sh{display:flex;align-items:baseline;gap:14px;margin-bottom:4px}
+.sh .idx{font:600 12px var(--mono);color:var(--red);letter-spacing:.1em}
+.sh h3{margin:0;font-size:17px;font-weight:700}
+.sub{margin:0 0 14px;color:var(--mut);font-size:13px;padding-inline-start:34px}
+.sec>*:not(.sh):not(.sub){margin-inline-start:34px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
+.src{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.src label{cursor:pointer;display:block}
+.src input{position:absolute;opacity:0;pointer-events:none}
+.src span{display:block;padding:9px 12px;border:1px solid var(--line2);transition:background .12s,color .12s}
+.src span b{display:block;font:600 13px var(--mono)}
+.src span small{color:var(--mut);font-size:12px}
+.src label:hover span{border-color:var(--tx)}
+.src input:checked+span{background:var(--tx);color:var(--ink);border-color:var(--tx)}
+.src input:checked+span small{color:inherit;opacity:.65}
+.src input:focus-visible+span{outline:2px solid var(--red);outline-offset:2px}
+.callout{border-inline-start:3px solid var(--red);padding:2px 14px;margin-top:14px;font-size:13px;color:var(--tx)}
+.callout.ok{border-inline-color:var(--tx)}
+.check{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--mut);cursor:pointer;margin-top:16px}
+.check input{width:15px;height:15px;accent-color:var(--red);margin:0}
+details{margin-top:12px}
+details summary{cursor:pointer;color:var(--mut);font-size:13px;width:max-content;border-bottom:1px dotted var(--mut)}
+details summary:hover{color:var(--tx)}
+details ol{margin:10px 0 0;padding-inline-start:20px;color:var(--mut);font-size:13px}
+details textarea{margin-top:10px}
+kbd{font:600 11px var(--mono);border:1px solid var(--line2);padding:0 6px;color:var(--mut)}
+
+/* run panel */
+.run{position:sticky;top:0;border:1px solid var(--tx);padding:20px;background:var(--panel)}
+.run .idx{font:600 11px var(--mono);letter-spacing:.2em;color:var(--red)}
+.run p{margin:6px 0 18px;color:var(--mut);font-size:13px}
+.run .btn+.btn{margin-top:8px}
+.run .hint{margin:12px 0 0;font-size:12px;color:var(--mut);text-align:center}
+.facts{list-style:none;margin:20px 0 0;padding:16px 0 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--mut)}
+.facts li{padding:3px 0 3px 0;display:flex;gap:10px}
+.facts li::before{content:"";width:6px;height:6px;background:var(--red);margin-top:9px;flex:none}
+
+/* results */
+.tiles{display:grid;grid-template-columns:repeat(5,1fr);border:1px solid var(--line);margin-bottom:20px}
+.tile{padding:14px 18px;border-inline-start:1px solid var(--line)}
+.tile:first-child{border-inline-start:0}
+.tile small{display:block;color:var(--mut);font-size:12px}
+.tile b{font:600 28px/1.4 var(--mono)}
+.tile.warn b{color:var(--red)}.tile.bad b{color:var(--mut)}
+.toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.toolbar .search{flex:1;min-width:200px}
+.toolbar select{width:auto;min-width:160px}
+.chips{display:flex;gap:0;margin-bottom:14px;border:1px solid var(--line2);width:max-content;max-width:100%;flex-wrap:wrap}
+.chip{cursor:pointer;border:0;border-inline-start:1px solid var(--line2);background:transparent;padding:4px 18px;font-size:13px;color:var(--mut);transition:.12s}
+.chip:first-child{border-inline-start:0}
+.chip:hover{color:var(--tx)}
+.chip.on{background:var(--tx);color:var(--ink);font-weight:600}
+.chip em{font:normal 11px var(--mono);margin-inline-start:8px;opacity:.7}
+.bulk{display:flex;align-items:center;gap:12px;border:1px solid var(--red);padding:7px 14px;margin-bottom:12px;font-weight:500}
+.bulk .btn{margin-inline-start:auto}
+.tw{border:1px solid var(--line);overflow:auto}
+table{width:100%;border-collapse:collapse;min-width:680px}
+th{font:500 11.5px var(--fa);color:var(--mut);text-align:start;padding:10px 12px;border-bottom:1px solid var(--tx);white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--hover)}
+td.c{width:34px}
+td.c input,th.c input{width:15px;height:15px;accent-color:var(--red);margin:0;cursor:pointer}
+td.rk{font:12px var(--mono);color:var(--mut);width:40px}
+td.nm{max-width:240px}
+td.nm div{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr;text-align:right;font:12.5px var(--mono)}
+.badge{display:inline-block;font:600 10px var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--mut);border:1px solid var(--line2);padding:0 6px;margin-inline-end:8px;vertical-align:1px}
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:0 10px;white-space:nowrap;border:1px solid var(--line2);color:var(--mut)}
+.pill i{display:none}
+.pill.ok{background:var(--tx);border-color:var(--tx);color:var(--ink)}
+.pill.blocked{border-color:var(--red);color:var(--red)}
+.pill.reachable{border-color:var(--tx);color:var(--tx)}
+.brand .ver{font:400 11px var(--mono);color:var(--mut);align-self:flex-end;padding-bottom:2px}
+.rg{font-size:12.5px;font-weight:500;white-space:nowrap}
+.rg.ok{color:var(--tx)}.rg.blocked{color:var(--red)}.rg.error{color:var(--mut)}
+.ms{display:flex;align-items:center;gap:10px;font:12.5px var(--mono);direction:ltr;min-width:120px}
+.ms i{height:4px;background:var(--tx);display:block}
+td.act{white-space:nowrap;text-align:end}
+td.act .btn+.btn{margin-inline-start:6px}
+.empty{padding:56px 20px;text-align:center;color:var(--mut)}
+.empty b{display:block;color:var(--tx);font-size:16px;margin-bottom:4px}
+.empty .btn{margin-top:16px}
+
+/* export */
+.seg{display:inline-flex;border:1px solid var(--line2);flex-wrap:wrap}
+.seg label{cursor:pointer}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg span{display:block;padding:6px 18px;font-size:13px;color:var(--mut);border-inline-start:1px solid var(--line2)}
+.seg label:first-child span{border-inline-start:0}
+.seg input:checked+span{background:var(--tx);color:var(--ink);font-weight:600}
+.seg input:focus-visible+span{outline:2px solid var(--red);outline-offset:2px}
+.opts{display:flex;gap:24px;flex-wrap:wrap;align-items:flex-end;margin-bottom:6px}
+#toast{position:fixed;bottom:26px;left:50%;transform:translate(-50%,12px);background:var(--tx);color:var(--ink);padding:9px 20px;font-weight:600;opacity:0;pointer-events:none;transition:.18s;z-index:20;border-inline-start:4px solid var(--red)}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media(max-width:900px){.cols{grid-template-columns:1fr;gap:28px}.run{position:static}.tiles{grid-template-columns:repeat(2,1fr)}.tile{border-top:1px solid var(--line)}.top{gap:12px;padding:0 14px;overflow-x:auto}.brand span,.status{display:none}main{padding:24px 14px 48px}.sec>*:not(.sh):not(.sub),.sub{margin-inline-start:0;padding-inline-start:0}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---- simple / advanced ---- */
+body[data-level=simple] [data-t=advanced],body[data-level=advanced] [data-t=simple]{display:none!important}
+.lvl-cap{font:600 10.5px var(--mono);letter-spacing:.2em;color:var(--mut);align-self:center;margin-inline-start:6px}
+.lvl{position:relative;display:flex;flex:none;align-self:center;height:36px;min-width:216px;border:1px solid var(--tx);margin-inline-start:6px}
+.lvl button{all:unset;box-sizing:border-box;position:relative;z-index:1;flex:1;display:grid;place-items:center;cursor:pointer;font:700 13.5px var(--fa);color:var(--mut);padding:0 16px;transition:color .3s}
+.lvl button:hover{color:var(--tx)}
+.lvl button[aria-checked=true]{color:#fff}
+.lvl button:focus-visible{outline:2px solid var(--red);outline-offset:3px}
+.lvl .thumb{position:absolute;inset-block:-1px;inset-inline-start:-1px;width:calc(50% + 1px);background:var(--red);transition:transform .5s cubic-bezier(.7,0,.2,1)}
+.lvl[data-level=advanced] .thumb{transform:translateX(-100%)}
+.lvl::after{content:"";position:absolute;inset:-5px;border:1px solid var(--red);opacity:0;pointer-events:none}
+.lvl.glitch::after{animation:ring .5s ease-out}
+@keyframes ring{0%{opacity:.9;inset:0}100%{opacity:0;inset:-9px}}
+
+.form{display:flex;flex-direction:column}
+body[data-level=simple] .src-sec{order:-1} /* in simple mode the configs to test are the first thing to fill in */
+.cz{display:grid;grid-template-rows:1fr;transition:grid-template-rows .5s cubic-bezier(.7,0,.2,1),opacity .35s}
+.cz>.in{overflow:hidden;min-height:0}
+body[data-level=simple] .cz[data-only=advanced],body[data-level=advanced] .cz[data-only=simple]{grid-template-rows:0fr;opacity:0;pointer-events:none}
+body[data-level=simple] .cz[data-only=advanced] *,body[data-level=advanced] .cz[data-only=simple] *{visibility:hidden}
+
+/* the route diagram morphs between the two modes */
+.route{display:flex;align-items:stretch;margin:0 0 30px;padding:20px 0;border-block:1px solid var(--line);overflow:hidden}
+.route .node{flex:none;max-width:210px;min-width:0;display:grid;gap:2px;text-align:center;white-space:nowrap;border:1px solid var(--line2);padding:8px 18px;
+  transition:max-width .6s cubic-bezier(.7,0,.2,1),padding .6s cubic-bezier(.7,0,.2,1),border-width .6s,opacity .35s}
+.route .node b{font:600 12px var(--mono);letter-spacing:.16em}
+.route .node small{color:var(--mut);font-size:11.5px}
+.route .node.you{border-color:var(--tx)}
+.route .node.goog{border-color:var(--red)}.route .node.goog b{color:var(--red)}
+.route .link{flex:1 1 0;min-width:30px;align-self:center;position:relative;height:1px;
+  background:repeating-linear-gradient(90deg,var(--line2) 0 6px,transparent 6px 12px);transition:flex-grow .6s cubic-bezier(.7,0,.2,1),min-width .6s,opacity .35s}
+.route .link::after{content:"";position:absolute;top:-2px;width:5px;height:5px;background:var(--red);inset-inline-start:0;animation:flow 2.6s linear infinite}
+@keyframes flow{0%{inset-inline-start:0;opacity:0}12%{opacity:1}88%{opacity:1}100%{inset-inline-start:calc(100% - 5px);opacity:0}}
+.route.simple .node.base{max-width:0;padding-inline:0;border-width:0;opacity:0;overflow:hidden}
+.route.simple .link.l-base{flex-grow:.0001;min-width:0;opacity:0}
+.route.simple .link.l-base::after{animation:none}
+
+/* a short glitch on the title when the mode flips */
+.glitch{animation:glitch .5s steps(2,end)}
+@keyframes glitch{
+  0%{text-shadow:3px 0 var(--red),-3px 0 var(--tx);transform:translateX(-3px)}
+  20%{text-shadow:-4px 0 var(--red),4px 0 var(--tx);transform:translateX(4px) skewX(-6deg)}
+  45%{text-shadow:2px 0 var(--red),-2px 0 var(--tx);transform:translateX(-2px)}
+  70%{text-shadow:-2px 0 var(--red),2px 0 var(--tx);transform:translateX(2px) skewX(4deg)}
+  100%{text-shadow:none;transform:none}}
+@media(max-width:900px){.lvl{min-width:176px}.lvl-cap{display:none}}
+@media(prefers-reduced-motion:reduce){.glitch,.lvl.glitch::after,.route .link::after{animation:none!important}}
+</style>
+</head>
+<body data-level="simple">
+<div class="shell">
+  <header class="top">
+    <div class="brand"><img class="mark" src="mark.png" alt=""><b>GEMINI<i>/</i>CHECK</b><span class="ver" id="ver"></span><span>اسکنر زنجیره‌ای ریجن</span></div>
+    <span class="lvl-cap">MODE</span>
+    <div class="lvl" id="lvl" data-level="simple" role="radiogroup" aria-label="حالت اسکن">
+      <button type="button" role="radio" data-set="simple" aria-checked="true" title="هر کانفیگ مستقیم تست می‌شود">ساده</button>
+      <button type="button" role="radio" data-set="advanced" aria-checked="false" title="کانفیگ‌ها پشت کانفیگ پایه‌ی تو زنجیره می‌شوند">پیشرفته</button>
+      <i class="thumb"></i>
+    </div>
+    <nav class="nav" aria-label="بخش‌ها">
+      <button data-ws="scan" class="on"><i>01</i>اسکن</button>
+      <button data-ws="results"><i>02</i>نتایج<span class="cnt" id="navCnt" hidden>0</span></button>
+      <button data-ws="export"><i>03</i>خروجی</button>
+    </nav>
+    <div class="top-r">
+      <div class="status" id="status" role="status"><span class="pulse"></span><div><b id="stTitle">آماده</b><span id="stSub">اسکنی در حال اجرا نیست</span></div></div>
+      <button class="theme" id="theme" title="تغییر تم"><span id="themeLbl">تم روشن</span></button>
+    </div>
+  </header>
+
+  <div class="runbar" id="runbar" hidden>
+    <div class="info">
+      <div class="line"><b id="rbMsg"></b><span id="rbCnt"></span></div>
+      <div class="prog"><i id="fill"></i></div>
+    </div>
+    <button class="btn danger" id="stopTop"><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>توقف اسکن</button>
+  </div>
+
+  <main>
+    <!-- SCAN -->
+    <section class="ws on" id="ws-scan">
+      <div class="ph"><div><span class="tag">SCAN</span><h1>اسکن جدید</h1>
+        <p><span data-t="simple">هر کانفیگ را مستقیم و بدون زنجیر تست می‌کند: دستگاه تو ← کانفیگ ← AI Studio و Gemini. برای وقتی که کانفیگ‌هایت را داری و فقط می‌خواهی بدانی کدام کار می‌کند.</span><span data-t="advanced">هر کانفیگ رایگان در یک مرورگر لاگین‌شده، از مسیر «کانفیگ پایه ← کانفیگ رایگان»، به AI Studio و Gemini می‌رسد. نتیجه همان چیزی است که خودت می‌بینی.</span></p></div></div>
+
+      <div class="route simple" id="route" aria-hidden="true">
+        <div class="node you"><b>YOU</b><small>سیستم تو</small></div>
+        <span class="link"></span>
+        <div class="node base"><b>BASE</b><small>کانفیگ پایه</small></div>
+        <span class="link l-base"></span>
+        <div class="node cfg"><b>CONFIG</b><small><span data-t="simple">کانفیگ تو</span><span data-t="advanced">کانفیگ رایگان</span></small></div>
+        <span class="link"></span>
+        <div class="node goog"><b>GOOGLE</b><small>AI Studio · Gemini</small></div>
+      </div>
+
+      <div class="cols">
+        <div class="form">
+          <div class="cz" data-only="advanced"><div class="in">
+          <div class="sec"><div class="sh"><span class="idx">01</span><h3>کانفیگ پایه</h3></div>
+            <p class="sub">کانفیگ کلودفلری که همین الان روی AI Studio ارور ریجن نمی‌دهد. لینک (vless / vmess / trojan / ss) یا کانفیگ کامل JSON، حتی زنجیره‌ای، قبول است.</p>
+            <textarea id="base" class="mono" placeholder="vless://…   vmess://…   trojan://…   ss://…   یا   { &quot;outbounds&quot;: [ … ] }" spellcheck="false" autocomplete="off"></textarea>
+          </div>
+          </div></div>
+
+          <div class="sec"><div class="sh"><span class="idx">02</span><h3>ضد فیلتر (DPI)</h3></div>
+            <p class="sub">در ایران کانفیگ‌های کلودفلر معمولاً فقط با این تنظیمات وصل می‌شوند. <span data-t="simple">چون هر کانفیگ مستقیم از سیستم تو وصل می‌شود، این تنظیمات روی خودِ هر کانفیگ اعمال می‌شود.</span><span data-t="advanced">تنظیمات روی اتصالی اعمال می‌شود که از سیستم خودت خارج می‌شود (هاپ اولِ کانفیگ پایه)، نه روی کانفیگ‌های رایگان.</span></p>
+            <label class="check" style="margin-top:0"><input type="checkbox" id="dpiOn" checked>اعمال تنظیمات ضد فیلتر</label>
+            <div id="dpiBox">
+              <div class="acts" style="margin:14px 0">
+                <button class="btn sm" id="dpiPreset" type="button">مقادیر پیشنهادی (PattN)</button>
+                <button class="btn sm" id="dpiRead" type="button"><span data-t="simple">خواندن از کانفیگ‌ها</span><span data-t="advanced">خواندن از کانفیگ پایه</span></button>
+              </div>
+              <label class="f" for="dpiMask">Finalmask (JSON)</label>
+              <textarea id="dpiMask" class="mono" spellcheck="false" placeholder='{"tcp": [{"type": "fragment", "settings": {…}}]}'></textarea>
+              <div class="grid" style="margin-top:14px">
+                <div><label class="f" for="dpiFp">Fingerprint</label>
+                  <select id="dpiFp"><option value="">بدون تغییر (طبق کانفیگ)</option><option value="unsafe">unsafe</option><option value="chrome">chrome</option><option value="firefox">firefox</option><option value="safari">safari</option><option value="ios">ios</option><option value="android">android</option><option value="edge">edge</option><option value="random">random</option><option value="randomized">randomized</option></select></div>
+                <div><label class="f" for="dpiAlpn">ALPN</label><input id="dpiAlpn" class="mono" placeholder="http/1.1" spellcheck="false"></div>
+                <div><label class="f" for="dpiIp">IP تمیز (اختیاری)</label><input id="dpiIp" class="mono" placeholder="188.114.97.6" spellcheck="false"></div>
+              </div>
+              <label class="f" for="dpiCiph" style="margin-top:14px">Cipher suites</label>
+              <textarea id="dpiCiph" class="mono" style="min-height:72px" spellcheck="false" placeholder="TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:…"></textarea>
+              <p class="callout" style="margin-top:14px">این مقادیر ممکن است عوض شوند. مقدار تازه که منتشر شد، همین‌جا جایگزین کن. اگر کانفیگی که paste می‌کنی خودش این مقادیر را دارد، «خواندن از کانفیگ پایه» آن‌ها را اینجا می‌آورد. IP تمیز فقط آدرس اتصال را عوض می‌کند و دامنه‌ی قبلی به‌عنوان SNI و Host می‌ماند.</p>
+            </div>
+          </div>
+
+          <div class="sec"><div class="sh"><span class="idx">03</span><h3>حساب Google</h3></div>
+            <p class="sub">گوگل ریجن را بعد از ورود به حساب بررسی می‌کند؛ پس تست با همان حساب انجام می‌شود، دقیقاً مثل مرورگر خودت.</p>
+            <div id="authBox"></div>
+            <details><summary>این ورود چقدر امن است؟</summary>
+              <ol><li>ورود داخل مرورگر خودت (Chrome / Edge / Brave) و در یک پروفایل جدا انجام می‌شود؛ برنامه هیچ رمزی نمی‌بیند.</li>
+                <li>کوکی‌های نشست فقط در حافظه‌ی همین برنامه و روی همین سیستم می‌مانند و جایی ارسال نمی‌شوند. درخواست‌ها با TLS مستقیم به گوگل می‌روند و سرور رایگان محتوای آن را نمی‌بیند.</li>
+                <li>چون درخواست‌ها از IPهای مختلف می‌آیند، گوگل ممکن است هشدار «ورود مشکوک» بدهد. پیشنهاد می‌شود یک حساب ثانویه استفاده کنی.</li>
+                <li>«حذف حساب از برنامه» فقط پروفایل جدای خود برنامه را پاک می‌کند، نه حساب‌های مرورگر اصلی‌ات را.</li></ol></details>
+          </div>
+
+          <div class="sec src-sec"><div class="sh"><span class="idx">04</span><h3><span data-t="simple">کانفیگ‌هایی که تست می‌شوند</span><span data-t="advanced">منبع کانفیگ‌های رایگان</span></h3></div>
+            <p class="sub"><span data-t="simple">کانفیگ‌هایت را paste کن (هر کدام در یک خط)، یا لینک ساب / متن base64. اگر چیزی paste نکنی، از لیست آماده‌ی پایین تست می‌شود.</span><span data-t="advanced">لیست‌ها هر ۱۵ دقیقه در ریپوی 0xRadikal/Free-v2ray-Configs به‌روز می‌شوند.</span></p>
+            <label class="f" for="pasted"><span data-t="simple">کانفیگ‌ها، لینک ساب یا متن base64</span><span data-t="advanced">یا کانفیگ‌های رایگان را مستقیم paste کن (به‌جای دانلود لیست)</span></label>
+            <textarea id="pasted" class="mono" placeholder="vless://…&#10;vmess://…&#10;trojan://…&#10;ss://…&#10;https://…/sub" spellcheck="false" autocomplete="off"></textarea>
+            <label class="f" style="margin-top:14px">یا یک لیست آماده</label>
+            <div class="src" id="src">
+              <label><input type="radio" name="s" value="verified" checked><span><b>verified</b><small>تست‌شده — پیشنهادی</small></span></label>
+              <label><input type="radio" name="s" value="fast"><span><b>fast</b><small>تأخیر کمتر از ۸۰۰ms</small></span></label>
+              <label><input type="radio" name="s" value="secure"><span><b>secure</b><small>دارای forward secrecy</small></span></label>
+              <label><input type="radio" name="s" value="light"><span><b>light</b><small>۵ منبع منتخب</small></span></label>
+              <label><input type="radio" name="s" value="top100"><span><b>top100</b><small>۱۰۰ کانفیگ سریع</small></span></label>
+              <label><input type="radio" name="s" value="heavy"><span><b>heavy</b><small>حجم زیاد</small></span></label>
+              <label><input type="radio" name="s" value="all"><span><b>all</b><small>همه — بسیار زیاد</small></span></label>
+              <label><input type="radio" name="s" value="custom"><span><b>custom</b><small>لینک ساب دلخواه</small></span></label>
+            </div>
+            <div id="customBox" hidden style="margin-top:12px"><label class="f" for="custom">لینک ساب</label><input id="custom" type="text" placeholder="https://…" class="mono"></div>
+          </div>
+
+          <div class="sec"><div class="sh"><span class="idx">05</span><h3>تنظیمات</h3></div>
+            <p class="sub">پیش‌فرض‌ها برای یک سیستم معمولی مناسب‌اند.</p>
+            <div class="grid">
+              <div><label class="f" for="mode">نوع بررسی</label><select id="mode"><option value="region">ریجن با مرورگر لاگین‌شده (دقیق)</option><option value="reach">فقط اتصال (سریع، بدون لاگین و مرورگر)</option></select></div>
+              <div><label class="f" for="need">کانفیگ «سالم» یعنی</label><select id="need"><option value="both">AI Studio و Gemini هر دو آزاد</option><option value="studio">فقط AI Studio آزاد</option><option value="gemini">فقط Gemini آزاد</option></select></div>
+              <div><label class="f" for="limit">حداکثر تعداد کانفیگ</label><input id="limit" type="number" min="1" value="60" class="mono"></div>
+              <div><label class="f" for="bconc">بررسی همزمان با مرورگر</label><input id="bconc" type="number" min="1" max="12" value="4" class="mono"></div>
+              <div><label class="f" for="conc">تست اتصال همزمان</label><input id="conc" type="number" min="1" max="100" value="20" class="mono"></div>
+              <div><label class="f" for="to">تایم‌اوت اتصال (ثانیه)</label><input id="to" type="number" min="3" value="10" class="mono"></div>
+            </div>
+            <label class="check"><input type="checkbox" id="remember" checked>کانفیگ‌ها و تنظیمات روی همین دستگاه ذخیره شود</label>
+          </div>
+        </div>
+
+        <aside class="run">
+          <span class="idx">RUN</span>
+          <p>همه‌چیز آماده است؟ اسکن را شروع کن؛ نتایج زنده در تب «نتایج» می‌آیند.</p>
+          <button class="btn pri lg block" id="go"><svg viewBox="0 0 24 24"><path d="m7 4 13 8-13 8Z"/></svg>شروع اسکن</button>
+          <button class="btn danger lg block" id="stop" hidden><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>توقف اسکن</button>
+          <div class="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></div>
+          <ul class="facts">
+            <li>هر کانفیگ حدود ۲۰ تا ۴۰ ثانیه طول می‌کشد.</li>
+            <li>هر بررسی همزمان حدود ۲۰۰ مگابایت RAM می‌خواهد.</li>
+            <li data-t="advanced">هر تست از سهمیه‌ی ورکر کلودفلرت کم می‌کند.</li>
+            <li data-t="simple">هر کانفیگ مستقیم و بدون زنجیر تست می‌شود.</li>
+            <li>فقط vless، vmess، trojan و ss تست می‌شوند.</li>
+          </ul>
+        </aside>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="ws" id="ws-results">
+      <div class="ph"><div><span class="tag">RESULTS</span><h1>نتایج</h1><p id="resSub">نتیجه‌ی اسکن به‌صورت زنده اینجا می‌آید.</p></div>
+        <div class="acts">
+          <button class="btn danger" id="stop2" hidden><svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12"/></svg>توقف اسکن</button>
+          <button class="btn" id="rescan">اسکن مجدد</button>
+          <button class="btn" id="clear">پاک کردن</button>
+        </div></div>
+
+      <div class="callout" id="reachBanner" hidden style="margin:0 0 18px">این اسکن فقط اتصال را سنجید: «متصل» یعنی کانفیگ به گوگل رسیده، ولی ریجن <b>بررسی نشده</b> و ممکن است در AI Studio یا Gemini همچنان بلاک باشد. برای نتیجه‌ی دقیق، نوع بررسی را روی «ریجن با مرورگر» بگذار.</div>
+      <div class="tiles">
+        <div class="tile"><small>تست‌شده</small><b id="tDone">0/0</b></div>
+        <div class="tile ok"><small id="tGoodLbl">سالم</small><b id="tGood">0</b></div>
+        <div class="tile warn"><small>ریجن بلاک</small><b id="tBlk">0</b></div>
+        <div class="tile bad"><small>خطا</small><b id="tBad">0</b></div>
+        <div class="tile"><small id="tBaseLbl">پینگ کانفیگ پایه</small><b id="tBase">—</b></div>
+      </div>
+
+      <div class="toolbar">
+        <input id="q" class="search mono" placeholder="جستجوی نام یا آدرس…" spellcheck="false" aria-label="جستجو">
+        <select id="sort" aria-label="مرتب‌سازی"><option value="ms">مرتب‌سازی: کمترین پینگ</option><option value="name">مرتب‌سازی: نام</option></select>
+      </div>
+      <div class="chips" id="chips"></div>
+      <div class="bulk" id="bulk" hidden><span id="bulkN"></span><button class="btn sm" id="bulkCopy">کپی لینک‌های انتخاب‌شده</button></div>
+
+      <div class="tw"><table>
+        <thead><tr><th class="c"><input type="checkbox" id="selAll" aria-label="انتخاب همه"></th><th>#</th><th>وضعیت</th><th>AI Studio</th><th>Gemini</th><th>پینگ</th><th>نام</th><th></th></tr></thead>
+        <tbody id="rows"></tbody></table>
+        <div class="empty" id="empty"></div></div>
+    </section>
+
+    <!-- EXPORT -->
+    <section class="ws" id="ws-export">
+      <div class="ph"><div><span class="tag">EXPORT</span><h1>خروجی</h1><p>کانفیگ‌های سالم را در قالب دلخواه کپی یا ذخیره کن.</p></div></div>
+      <div class="sec"><div class="sh"><span class="idx">01</span><h3>قالب</h3></div>
+        <div class="opts" style="margin-top:14px">
+          <div><label class="f">نوع خروجی</label><div class="seg">
+            <label><input type="radio" name="fmt" value="raw" checked><span>لینک‌ها</span></label>
+            <label><input type="radio" name="fmt" value="b64"><span>ساب Base64</span></label>
+            <label><input type="radio" name="fmt" value="chain"><span id="fmtChainLbl">کانفیگ Chain (Xray)</span></label></div></div>
+          <div id="topBox" style="width:150px"><label class="f" for="topn">حداکثر (۰ = همه)</label><input id="topn" type="number" min="0" value="0" class="mono"></div>
+          <div id="pickBox" hidden style="min-width:260px;flex:1"><label class="f" for="pick" id="pickLbl">کانفیگ رایگان</label><select id="pick"></select></div>
+          <div id="flavorBox" hidden style="min-width:260px"><label class="f" for="flavor">کلاینت مقصد</label><select id="flavor"><option value="patt">PattN / PattNG (با finalmask)</option><option value="std">Xray / v2rayN استاندارد</option></select></div>
+        </div>
+        <div class="callout ok" id="fmtHelp"></div>
+      </div>
+      <div class="sec"><div class="sh"><span class="idx">02</span><h3>پیش‌نمایش</h3><span class="mono" style="color:var(--mut);font-size:12.5px" id="cnt"></span></div>
+        <textarea id="out" class="mono" readonly style="min-height:280px;margin-top:12px" spellcheck="false"></textarea>
+        <div class="acts" style="margin-top:14px"><button class="btn pri" id="copy">کپی</button><button class="btn" id="save">ذخیره در فایل</button></div>
+      </div>
+    </section>
+  </main>
+</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const $ = id => document.getElementById(id), $$ = s => [...document.querySelectorAll(s)];
+const J = {'Content-Type': 'application/json'};
+// Desktop (Wails) exposes Go methods on window.go; the web build talks HTTP. Same UI either way.
+const api = window.go?.main?.App ? (A => ({
+  start: r => A.Start(r), stop: () => A.Stop(), clear: () => A.Clear(), status: () => A.Status(),
+  login: () => A.Login(), cancelLogin: () => A.CancelLogin(), logout: () => A.Logout(),
+  version: () => A.Version(), chain: r => A.Chain(r), save: (n, t) => A.SaveText(n, t), defaultProfile: () => A.DefaultProfile(), extractProfile: b => A.ExtractProfile(b),
+}))(window.go.main.App) : {
+  start: async r => { const x = await fetch('/api/scan', {method: 'POST', headers: J, body: JSON.stringify(r)}); if (!x.ok) throw await x.text(); },
+  stop: () => fetch('/api/stop', {method: 'POST', headers: J}),
+  clear: () => fetch('/api/clear', {method: 'POST', headers: J}),
+  login: async () => { const x = await fetch('/api/login', {method: 'POST', headers: J}); if (!x.ok) throw await x.text(); },
+  cancelLogin: () => fetch('/api/login/cancel', {method: 'POST', headers: J}),
+  logout: () => fetch('/api/logout', {method: 'POST', headers: J}),
+  status: async () => (await fetch('/api/status')).json(),
+  chain: async r => { const x = await fetch('/api/chain', {method: 'POST', headers: J, body: JSON.stringify(r)}); const t = await x.text(); if (!x.ok) throw t; return t; },
+  version: async () => (await fetch('/api/version')).text(),
+  defaultProfile: async () => (await fetch('/api/profile/default')).json(),
+  extractProfile: async base => { const x = await fetch('/api/profile/extract', {method: 'POST', headers: J, body: JSON.stringify({base})}); if (!x.ok) throw await x.text(); return x.json(); },
+  save: async (n, t) => { if (window.AndroidBridge) { AndroidBridge.saveText(n, t); return true; } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], {type: 'text/plain'})); a.download = n; a.click(); },
+};
+
+/* ---------- state & persistence ---------- */
+let S = {state: 'idle', results: [], auth: 'none'}, timer = null, filter = 'good';
+const sel = new Set();
+let LEVEL = 'simple'; // what the switch shows; Results/Export follow the level of the scan that produced them
+const lvl = () => (S.results && S.results.length && S.level ? S.level : LEVEL);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+const FIELDS = ['mode', 'base', 'pasted', 'custom', 'need', 'limit', 'bconc', 'conc', 'to', 'remember', 'dpiOn', 'dpiMask', 'dpiFp', 'dpiAlpn', 'dpiIp', 'dpiCiph', 'flavor'];
+function saveForm() {
+  if (!$('remember').checked) return store.del('gcc.form');
+  const o = {source: document.querySelector('input[name=s]:checked').value};
+  FIELDS.forEach(f => o[f] = $(f).type === 'checkbox' ? $(f).checked : $(f).value);
+  store.set('gcc.form', JSON.stringify(o));
+}
+function loadForm() {
+  let o; try { o = JSON.parse(store.get('gcc.form')); } catch {}
+  if (!o) return;
+  FIELDS.forEach(f => { if (o[f] != null) { if ($(f).type === 'checkbox') $(f).checked = o[f]; else $(f).value = o[f]; } });
+  const r = document.querySelector(`input[name=s][value="${o.source}"]`); if (r) r.checked = true;
+  syncForm();
+}
+function syncForm() { $('customBox').hidden = document.querySelector('input[name=s]:checked').value !== 'custom'; $('dpiBox').hidden = !$('dpiOn').checked; }
+const profile = () => ({enabled: $('dpiOn').checked, finalmask: $('dpiMask').value.trim(), fingerprint: $('dpiFp').value, alpn: $('dpiAlpn').value.trim(),
+  cipherSuites: $('dpiCiph').value.trim(), cleanIP: $('dpiIp').value.trim()});
+function setProfile(p) {
+  $('dpiMask').value = p.finalmask || ''; $('dpiFp').value = p.fingerprint || ''; $('dpiAlpn').value = p.alpn || '';
+  $('dpiCiph').value = p.cipherSuites || ''; if (p.cleanIP != null && p.cleanIP !== '') $('dpiIp').value = p.cleanIP;
+  syncForm(); saveForm();
+}
+async function loadDefaultProfile() { try { const p = await api.defaultProfile(); p.cleanIP = ''; setProfile(p); } catch (e) { toast(String(e)); } }
+$('dpiOn').onchange = () => { syncForm(); saveForm(); };
+$('dpiPreset').onclick = async () => { await loadDefaultProfile(); toast('مقادیر پیشنهادی گذاشته شد'); };
+$('dpiRead').onclick = async () => {
+  try { setProfile(await api.extractProfile(LEVEL === 'simple' ? ($('pasted').value.split(/\s+/).find(x => x.includes('://')) || '') : $('base').value)); toast('مقادیر از کانفیگ خوانده شد'); } catch (e) { toast(String(e)); }
+};
+$('flavor').onchange = () => { saveForm(); renderExport(); };
+document.querySelectorAll('.form input,.form textarea,.form select').forEach(e => e.addEventListener('input', () => { syncForm(); saveForm(); }));
+
+/* ---------- theme ---------- */
+function applyTheme(t) { document.documentElement.dataset.theme = t; $('themeLbl').textContent = t === 'dark' ? 'تم روشن' : 'تم تیره'; }
+applyTheme(store.get('gcc.theme') || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+$('theme').onclick = () => { const t = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; applyTheme(t); store.set('gcc.theme', t); };
+
+/* ---------- helpers ---------- */
+function toast(m) { const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('on'), 2400); }
+function tab(name) { $$('.ws').forEach(e => e.classList.toggle('on', e.id === 'ws-' + name)); $$('.nav button').forEach(b => b.classList.toggle('on', b.dataset.ws === name)); $$('main')[0].scrollTop = 0; }
+$$('.nav button').forEach(b => b.onclick = () => tab(b.dataset.ws));
+const isGood = r => r.status === 'ok' || r.status === 'reachable';
+const goodLabel = () => (S.mode === 'reach' ? 'متصل' : 'سالم');
+const goodList = () => (S.results || []).filter(isGood).sort((a, b) => a.ms - b.ms);
+const proto = l => l.split('://')[0];
+async function copy(t) {
+  try { await navigator.clipboard.writeText(t); }
+  catch { const a = document.createElement('textarea'); a.value = t; document.body.append(a); a.select(); document.execCommand('copy'); a.remove(); }
+  toast('کپی شد');
+}
+const chainReq = link => ({base: lvl() === 'simple' ? '' : $('base').value.trim(), link, profile: profile(), flavor: $('flavor').value});
+async function chainOf(link) {
+  const base = $('base').value.trim();
+  if (!base && lvl() !== 'simple') { tab('scan'); toast('اول کانفیگ پایه را در تب اسکن وارد کن'); throw 0; }
+  return api.chain(chainReq(link));
+}
+async function copyChain(link) { try { await copy(await chainOf(link)); } catch (e) { if (e) toast(String(e)); } }
+function b64(s) { let bin = ''; new TextEncoder().encode(s).forEach(c => bin += String.fromCharCode(c)); return btoa(bin); }
+
+/* ---------- actions ---------- */
+async function start() {
+  const level = LEVEL, base = level === 'advanced' ? $('base').value.trim() : '';
+  if (level === 'advanced' && !base) { toast('کانفیگ پایه را وارد کن'); $('base').focus(); return; }
+  if ($('mode').value === 'region' && S.auth !== 'ok') { tab('scan'); toast('اول با حساب Google وارد شو'); $('authBox').scrollIntoView({block: 'center'}); return; }
+  try {
+    await api.start({level, base, mode: $('mode').value, profile: profile(), source: document.querySelector('input[name=s]:checked').value, custom: $('custom').value.trim(),
+      pasted: $('pasted').value, need: $('need').value, limit: +$('limit').value, browserConc: +$('bconc').value, concurrency: +$('conc').value, timeout: +$('to').value});
+  } catch (e) { return toast(String(e)); }
+  sel.clear(); filter = 'good'; tab('results'); poll();
+}
+$('go').onclick = start; $('rescan').onclick = start;
+['stop', 'stopTop', 'stop2'].forEach(id => $(id).onclick = () => api.stop());
+$('clear').onclick = async () => { await api.clear(); sel.clear(); poll(); };
+document.addEventListener('keydown', e => { if (e.ctrlKey && e.key === 'Enter' && S.state !== 'running') start(); });
+['q', 'sort'].forEach(id => $(id).oninput = renderRows);
+$('selAll').onchange = e => { visibleRows().forEach(r => e.target.checked ? sel.add(r.link) : sel.delete(r.link)); renderRows(); };
+$('bulkCopy').onclick = () => copy([...sel].join('\n'));
+$$('input[name=fmt],#topn,#pick').forEach(e => e.oninput = renderExport);
+
+async function poll() {
+  try { S = await api.status(); } catch { return; }
+  render();
+  const busy = S.state === 'running' || S.auth === 'waiting' || S.auth === 'checking';
+  if (busy && !timer) timer = setInterval(poll, 800);
+  if (!busy && timer) { clearInterval(timer); timer = null; }
+}
+
+function renderAuth() {
+  const box = $('authBox'); box.replaceChildren();
+  const el = (t, c, txt) => { const e = document.createElement(t); if (c) e.className = c; if (txt) e.textContent = txt; return e; };
+  const btn = (label, cls, fn) => { const b = el('button', 'btn ' + cls, label); b.onclick = fn; return b; };
+  const note = (cls, txt) => { const c = el('div', 'callout ' + cls), d = el('div'); d.textContent = txt; c.append(d); c.style.margin = '0 0 12px'; return c; };
+  const a = S.auth || 'none';
+  if (a === 'ok') {
+    box.append(note('ok', 'حساب Google متصل است. تست‌ها با همین حساب انجام می‌شوند.'),
+      btn('حذف حساب از برنامه', '', async () => { await api.logout(); poll(); toast('ورود ذخیره‌شده‌ی برنامه پاک شد (حساب‌های مرورگر اصلی‌ات دست نخورد)'); }));
+  } else if (a === 'checking') {
+    box.append(note('', 'در حال بررسی ورود قبلی…'));
+  } else if (a === 'waiting') {
+    box.append(note('', S.authMsg || 'منتظر ورود…'), btn('لغو', '', async () => { await api.cancelLogin(); poll(); }));
+  } else {
+    if (a === 'failed') box.append(note('', S.authMsg || 'ورود انجام نشد.'));
+    box.append(btn('ورود با Google', 'pri', async () => { try { await api.login(); } catch (e) { return toast(String(e)); } poll(); }));
+  }
+}
+
+/* ---------- render ---------- */
+const PILL = {ok: 'سالم', reachable: 'متصل', blocked: 'ریجن بلاک', error: 'خطا'};
+function render() {
+  renderAuth();
+  const noBrowser = S.browser === false, ms = $('mode');
+  ms.querySelector('option[value=region]').disabled = noBrowser;
+  if (noBrowser && ms.value === 'region') { ms.value = 'reach'; saveForm(); }
+  $('reachBanner').hidden = S.mode !== 'reach' || S.state === 'idle';
+  $('tGoodLbl').textContent = goodLabel();
+  const run = S.state === 'running', res = S.results || [], good = goodList().length, idle = S.state === 'idle';
+  $('go').hidden = run; $('stop').hidden = !run; $('stop2').hidden = !run;
+  $('rescan').disabled = run; $('clear').disabled = run || idle;
+  $('runbar').hidden = !run;
+  $('rbMsg').textContent = S.msg || ''; $('rbCnt').textContent = S.total ? `${S.done} / ${S.total}` : '';
+  $('fill').style.width = (S.total ? 100 * S.done / S.total : 0) + '%';
+
+  const st = $('status'); st.className = 'status' + (run ? ' run' : S.state === 'done' ? ' done' : S.state === 'failed' ? ' bad' : '');
+  $('stTitle').textContent = {idle: 'آماده', running: 'در حال اسکن', done: 'اسکن تمام شد', stopped: 'متوقف شد', failed: 'خطا'}[S.state];
+  $('stSub').textContent = run ? `${S.done} از ${S.total || '…'}` : idle ? 'اسکنی در حال اجرا نیست' : `${good} کانفیگ ${goodLabel()}`;
+
+  const nc = $('navCnt'); nc.hidden = !good; nc.textContent = good;
+  $('resSub').textContent = {failed: S.msg, idle: 'نتیجه‌ی اسکن به‌صورت زنده اینجا می‌آید.', running: 'اسکن در حال انجام است؛ نتایج زنده اضافه می‌شوند.',
+    done: 'اسکن کامل شد.', stopped: 'اسکن متوقف شد؛ نتایج تا همین‌جا حفظ شده است.'}[S.state] + (S.skipped ? ` (${S.skipped} لینک با پروتکل پشتیبانی‌نشده رد شد)` : '');
+  $('resSub').textContent += ' · حالت ' + (lvl() === 'simple' ? 'ساده' : 'پیشرفته');
+  $('tDone').textContent = `${S.done || 0}/${S.total || 0}`;
+  $('tGood').textContent = good;
+  $('tBlk').textContent = res.filter(r => r.status === 'blocked').length;
+  $('tBad').textContent = res.filter(r => r.status === 'error').length;
+  if (lvl() === 'simple') { $('tBaseLbl').textContent = 'کمترین پینگ'; const best = goodList()[0]; $('tBase').textContent = best ? best.ms + 'ms' : '—'; }
+  else { $('tBaseLbl').textContent = 'پینگ کانفیگ پایه'; const b = S.base; $('tBase').textContent = !b ? '—' : b.status === 'error' ? 'ERR' : b.ms + 'ms'; }
+  renderChips(); renderRows(); renderExport();
+}
+
+function renderChips() {
+  const res = S.results || [], n = f => res.filter(r => f === 'all' ? true : f === 'good' ? isGood(r) : r.status === f).length;
+  const defs = [['good', goodLabel()], ['all', 'همه'], ['blocked', 'ریجن بلاک'], ['error', 'خطا']];
+  const box = $('chips'); box.replaceChildren();
+  defs.forEach(([k, l]) => {
+    const c = document.createElement('button'); c.className = 'chip' + (filter === k ? ' on' : '');
+    c.append(l); const e = document.createElement('em'); e.textContent = n(k); c.append(e);
+    c.onclick = () => { filter = k; renderChips(); renderRows(); }; box.append(c);
+  });
+}
+
+function visibleRows() {
+  const q = $('q').value.trim().toLowerCase();
+  const rows = (S.results || []).filter(r => (filter === 'all' || (filter === 'good' ? isGood(r) : r.status === filter)) && (!q || (r.name + ' ' + r.link).toLowerCase().includes(q)));
+  rows.sort($('sort').value === 'name' ? (a, b) => (a.name || '').localeCompare(b.name || '') : (a, b) => (isGood(a) ? a.ms : 1e9) - (isGood(b) ? b.ms : 1e9));
+  return rows;
+}
+
+function renderRows() {
+  const rows = visibleRows(), tb = $('rows'); tb.replaceChildren();
+  const maxMs = Math.max(1, ...rows.filter(isGood).map(r => r.ms));
+  rows.slice(0, 500).forEach((r, i) => {
+    const tr = tb.insertRow();
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = sel.has(r.link); cb.setAttribute('aria-label', 'انتخاب');
+    cb.onchange = () => { cb.checked ? sel.add(r.link) : sel.delete(r.link); renderBulk(); };
+    tr.insertCell().append(cb); tr.cells[0].className = 'c';
+    tr.insertCell().textContent = i + 1; tr.cells[1].className = 'rk';
+    const st = tr.insertCell(), p = document.createElement('span'); p.className = 'pill ' + r.status; p.append(document.createElement('i'), PILL[r.status] || r.status); p.title = r.err || ''; st.append(p);
+    for (const k of ['studio', 'gemini']) { const c = tr.insertCell(), v = r[k]; if (v) { const t = document.createElement('span'); t.className = 'rg ' + v; t.textContent = v === 'ok' ? '✓ آزاد' : v === 'blocked' ? '✗ بلاک' : '؟'; c.append(t); } }
+    const ms = tr.insertCell();
+    if (isGood(r)) { const w = document.createElement('div'); w.className = 'ms'; const bar = document.createElement('i'); bar.style.width = Math.max(6, 64 * (1 - r.ms / (maxMs * 1.15))) + 'px'; w.append(r.ms + ' ms', bar); ms.append(w); }
+    const n = tr.insertCell(); n.className = 'nm'; const d = document.createElement('div'), bd = document.createElement('span'); bd.className = 'badge'; bd.textContent = proto(r.link);
+    d.title = r.link; d.append(bd, r.name || r.link.slice(0, 40)); n.append(d);
+    const a = tr.insertCell(); a.className = 'act';
+    const c1 = document.createElement('button'); c1.className = 'btn sm'; c1.textContent = 'کپی'; c1.onclick = () => copy(r.link);
+    const c2 = document.createElement('button'); c2.className = 'btn sm'; c2.textContent = lvl() === 'simple' ? 'کپی کانفیگ کامل' : 'کپی با Chain'; c2.title = lvl() === 'simple' ? 'کانفیگ کامل Xray برای همین کانفیگ، همراه تنظیمات ضد فیلتر' : 'کانفیگ کامل Xray: کانفیگ پایه ← این کانفیگ'; c2.onclick = () => copyChain(r.link);
+    a.append(c1, c2);
+  });
+  const e = $('empty'); e.style.display = rows.length ? 'none' : 'block'; e.replaceChildren();
+  if (!rows.length) {
+    const b = document.createElement('b');
+    if (S.state === 'idle') { b.textContent = 'هنوز اسکنی انجام نشده'; const bt = document.createElement('button'); bt.className = 'btn pri'; bt.textContent = 'رفتن به اسکن'; bt.onclick = () => tab('scan'); e.append(b, 'کانفیگ پایه را وارد کن و اسکن را شروع کن.', document.createElement('br'), bt); }
+    else if (S.state === 'running') { b.textContent = 'در حال اسکن…'; e.append(b, 'اولین نتایج به‌زودی می‌رسند.'); }
+    else if (S.state === 'failed') { b.textContent = 'اسکن انجام نشد'; e.append(b, S.msg); }
+    else { b.textContent = 'موردی برای نمایش نیست'; e.append(b, 'فیلتر یا جستجو را تغییر بده.'); }
+  }
+  $('selAll').checked = rows.length > 0 && rows.every(r => sel.has(r.link));
+  renderBulk();
+}
+function renderBulk() { $('bulk').hidden = !sel.size; $('bulkN').textContent = `${sel.size} کانفیگ انتخاب شده`; }
+
+const HELP = {
+  raw: 'لینک‌ها را یکی‌یکی در BPB ← Chain Proxy بگذار (BPB فقط یک کانفیگ می‌پذیرد، معمولاً اولی کافی است).',
+  b64: 'متن Base64 را به‌عنوان ساب در کلاینت (v2rayN، Hiddify و …) import کن. این ساب فقط کانفیگ رایگان‌ها را دارد، نه زنجیره را.',
+  chain: 'کانفیگ کامل Xray با زنجیره‌ی «کانفیگ پایه ← کانفیگ رایگان» و تنظیمات ضد فیلتر، در همان قالبی که v2rayN و PattN خودشان export می‌کنند (پروکسی mixed روی 10808 و 10809). برای PattN / PattNG گزینه‌ی اول، برای Xray و v2rayN استاندارد گزینه‌ی دوم (بدون finalmask) را بزن. ذخیره کن و به‌عنوان کانفیگ سفارشی وارد کن.',
+};
+const HELP_SIMPLE = {
+  raw: 'لینک‌ها را در کلاینتت (v2rayN، Hiddify، PattN و …) import کن؛ این کانفیگ‌ها مستقیم و بدون زنجیر کار می‌کنند.',
+  b64: 'متن Base64 را به‌عنوان ساب در کلاینتت import کن.',
+  chain: 'کانفیگ کامل Xray برای یکی از کانفیگ‌های سالم، همراه تنظیمات ضد فیلتر (پروکسی mixed روی 10808 و 10809). برای PattN / PattNG گزینه‌ی اول، برای Xray و v2rayN استاندارد گزینه‌ی دوم را بزن.',
+};
+let chainTxt = '';
+async function renderExport() {
+  const fmt = document.querySelector('input[name=fmt]:checked').value, list = goodList();
+  const simpleLvl = lvl() === 'simple';
+  $('fmtChainLbl').textContent = simpleLvl ? 'کانفیگ کامل (Xray)' : 'کانفیگ Chain (Xray)';
+  $('pickLbl').textContent = simpleLvl ? 'کانفیگ' : 'کانفیگ رایگان';
+  $('topBox').hidden = fmt === 'chain'; $('pickBox').hidden = fmt !== 'chain'; $('flavorBox').hidden = fmt !== 'chain'; $('fmtHelp').textContent = (simpleLvl ? HELP_SIMPLE : HELP)[fmt];
+  $('copy').disabled = $('save').disabled = !list.length;
+  if (fmt === 'chain') {
+    const p = $('pick'), cur = p.value;
+    if (p.options.length !== list.length || (cur && !list.some(r => r.link === cur))) {
+      p.replaceChildren(...list.map((r, i) => { const o = document.createElement('option'); o.value = r.link; o.textContent = `${i + 1}. ${r.name || proto(r.link)} — ${r.ms}ms`; return o; }));
+    }
+    $('cnt').textContent = list.length ? '— ۱ کانفیگ' : '';
+    if (!list.length) { chainTxt = ''; $('out').value = 'هنوز کانفیگ سالمی وجود ندارد.'; return; }
+    const link = $('pick').value || list[0].link, tok = (renderExport.t = (renderExport.t || 0) + 1);
+    try { chainTxt = await chainOf(link); } catch (e) { chainTxt = ''; if (tok === renderExport.t) $('out').value = e ? String(e) : 'برای ساخت کانفیگ Chain، کانفیگ پایه را در تب اسکن وارد کن.'; return; }
+    if (tok === renderExport.t) $('out').value = chainTxt;
+    return;
+  }
+  const n = +$('topn').value, links = list.slice(0, n > 0 ? n : undefined).map(r => r.link), raw = links.join('\n');
+  $('out').value = fmt === 'b64' ? b64(raw) : raw; $('cnt').textContent = links.length ? `— ${links.length} کانفیگ` : '';
+}
+const exportText = () => document.querySelector('input[name=fmt]:checked').value === 'chain' ? chainTxt : $('out').value;
+$('copy').onclick = () => { const t = exportText(); t ? copy(t) : toast('خروجی خالی است'); };
+$('save').onclick = async () => {
+  const t = exportText(); if (!t) return toast('خروجی خالی است');
+  const name = document.querySelector('input[name=fmt]:checked').value === 'chain' ? 'chain-config.json' : 'good-configs.txt';
+  try { if (await api.save(name, t) !== false) toast('ذخیره شد'); } catch (x) { toast(String(x)); }
+};
+
+api.version().then(v => $('ver').textContent = v).catch(() => {});
+/* ---------- simple / advanced ---------- */
+function renumber() {
+  // number the sections the user can see, in the order they appear (CSS "order" moves the configs box first in simple mode)
+  const items = $$('.form .sec').filter(sec => {
+    const only = sec.closest('[data-only]')?.dataset.only;
+    return !only || only === LEVEL;
+  }).map((sec, i) => ({sec, i, o: +getComputedStyle(sec.closest('.cz') || sec).order || 0}));
+  items.sort((a, b) => a.o - b.o || a.i - b.i).forEach((x, n) => { x.sec.querySelector('.idx').textContent = String(n + 1).padStart(2, '0'); });
+}
+function glitch() {
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const els = [document.querySelector('#ws-scan .ph h1'), $('route'), $('lvl')];
+  els.forEach(e => { e.classList.remove('glitch'); void e.offsetWidth; e.classList.add('glitch'); });
+  setTimeout(() => els.forEach(e => e.classList.remove('glitch')), 560);
+}
+function setLevel(l, user) {
+  LEVEL = l;
+  document.body.dataset.level = l;
+  const sw = $('lvl'); sw.dataset.level = l;
+  sw.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', String(b.dataset.set === l)));
+  $('route').classList.toggle('simple', l === 'simple');
+  store.set('gcc.level', l);
+  renumber();
+  if (user) {
+    glitch();
+    toast(l === 'simple' ? 'حالت ساده: هر کانفیگ مستقیم تست می‌شود' : 'حالت پیشرفته: کانفیگ‌ها پشت کانفیگ پایه‌ی تو زنجیره می‌شوند');
+  }
+  render();
+}
+$$('#lvl button').forEach(b => b.onclick = () => { if (b.dataset.set !== LEVEL) setLevel(b.dataset.set, true); });
+$('lvl').addEventListener('keydown', e => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  e.preventDefault(); setLevel(LEVEL === 'simple' ? 'advanced' : 'simple', true);
+  $('lvl').querySelector('[aria-checked=true]').focus();
+});
+LEVEL = store.get('gcc.level') === 'advanced' ? 'advanced' : 'simple';
+loadForm(); syncForm(); setLevel(LEVEL, false); if (!$('dpiMask').value && !$('dpiCiph').value) loadDefaultProfile(); poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+name: Release
+
+# How a release happens:
+#   * Push to `main` (the first upload of the repo, or any later push): the version comes from the VERSION file. If a GitHub
+#     release for that version does not exist yet, every artifact is built and the release `v<VERSION>` is published
+#     automatically. If it already exists the run is a no-op, so ordinary commits never rebuild or overwrite a release.
+#   * To ship a new version: bump VERSION (and CHANGELOG.md), push to `main`.
+#   * Pushing a tag `vX.Y.Z` also works (the tag must match VERSION).
+#   * "Run workflow" builds everything as workflow artifacts; tick "publish" to also create the release.
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Also publish a GitHub release"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PKG: gemini-config-checker/internal/buildinfo
+
+jobs:
+  # ---------------------------------------------------------------------------------------------------------------
+  meta:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      code: ${{ steps.v.outputs.code }}
+      build: ${{ steps.v.outputs.build }}
+      publish: ${{ steps.v.outputs.publish }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: |
+          version="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::VERSION must be a semantic version like 0.1.0, got '$version'"; exit 1
+          fi
+          tag="v$version"
+          if [ "$REF_TYPE" = "tag" ] && [ "$REF_NAME" != "$tag" ]; then
+            echo "::error::tag $REF_NAME does not match the VERSION file ($tag)"; exit 1
+          fi
+
+          build=true; publish=false
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            publish="$INPUT_PUBLISH"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            publish=true
+          elif gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            build=false
+            echo "Release $tag already exists; nothing to build. Bump VERSION to publish a new one."
+          else
+            publish=true
+          fi
+
+          IFS=. read -r major minor patch <<< "${version%%-*}"
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "code=$((major * 10000 + minor * 100 + patch))"
+            echo "build=$build"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+          echo "version=$version tag=$tag build=$build publish=$publish"
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Web server: one static binary per OS/arch. The UI opens in the browser (also runs on servers).
+  web:
+    name: Web ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: meta
+    if: needs.meta.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { goos: linux,   goarch: amd64 }
+          - { goos: linux,   goarch: arm64 }
+          - { goos: linux,   goarch: arm, goarm: "7" }
+          - { goos: windows, goarch: amd64 }
+          - { goos: windows, goarch: arm64 }
+          - { goos: darwin,  goarch: amd64 }
+          - { goos: darwin,  goarch: arm64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test ./internal/... -count=1
+      - name: Build and package
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: |
+          name="gemini-config-checker-web_${VERSION}_${GOOS}_${GOARCH}"
+          ext=""; [ "$GOOS" = "windows" ] && ext=".exe"
+          mkdir -p "dist/$name"
+          go build -trimpath -ldflags "-s -w -X ${PKG}.Version=${VERSION}" -o "dist/$name/gemini-config-checker${ext}" .
+          cp README.md README.fa.md LICENSE* "dist/$name/" 2>/dev/null || cp README.md README.fa.md "dist/$name/"
+          cd dist
+          if [ "$GOOS" = "windows" ]; then zip -qr "$name.zip" "$name"; else tar -czf "$name.tar.gz" "$name"; fi
+          rm -rf "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Desktop apps (Wails): a native window. Each OS builds on its own runner because it needs the platform webview.
+  desktop-windows:
+    name: Desktop windows/${{ matrix.arch }}
+    needs: meta
+    if: needs.meta.outputs.build == 'true'
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+      - name: Build
+        working-directory: desktop
+        shell: pwsh
+        run: wails build -s -clean -trimpath -platform windows/${{ matrix.arch }} -ldflags "-X $env:PKG.Version=$env:VERSION"
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "gemini-config-checker-desktop_${env:VERSION}_windows_${{ matrix.arch }}"
+          New-Item -ItemType Directory -Force "dist/$name" | Out-Null
+          Copy-Item desktop/build/bin/GeminiConfigChecker.exe "dist/$name/"
+          Copy-Item README.md, README.fa.md "dist/$name/"
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-windows-${{ matrix.arch }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  desktop-macos:
+    name: Desktop macOS (universal)
+    needs: meta
+    if: needs.meta.outputs.build == 'true'
+    runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+      - name: Build
+        working-directory: desktop
+        run: wails build -s -clean -trimpath -platform darwin/universal -ldflags "-X ${PKG}.Version=${VERSION}"
+      - name: Package
+        run: |
+          name="gemini-config-checker-desktop_${VERSION}_macos_universal"
+          mkdir -p "dist/$name"
+          cp -R desktop/build/bin/*.app "dist/$name/"
+          cp README.md README.fa.md "dist/$name/"
+          cd dist && ditto -c -k --keepParent "$name" "$name.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-macos-universal
+          path: dist/*.zip
+          if-no-files-found: error
+
+  desktop-linux:
+    name: Desktop linux/amd64
+    needs: meta
+    if: needs.meta.outputs.build == 'true'
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: System packages (GTK + WebKit)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+      - run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+      - name: Build
+        working-directory: desktop
+        run: wails build -s -clean -trimpath -platform linux/amd64 -tags webkit2_41 -ldflags "-X ${PKG}.Version=${VERSION}"
+      - name: Package
+        run: |
+          name="gemini-config-checker-desktop_${VERSION}_linux_amd64"
+          mkdir -p "dist/$name"
+          cp desktop/build/bin/GeminiConfigChecker "dist/$name/"
+          cp README.md README.fa.md "dist/$name/"
+          tar -czf "dist/$name.tar.gz" -C dist "$name"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-linux-amd64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------------------------------------------
+  # Android APK: the Go engine (android/arm64, no CGO) ships inside the APK as an executable `libgccserver.so`; a
+  # foreground service runs it and a WebView shows the same UI. Connectivity mode only: the signed-in region check
+  # needs a Chromium browser that Android does not expose to apps.
+  android:
+    name: Android APK (arm64-v8a)
+    needs: meta
+    if: needs.meta.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      VERSION_NAME: ${{ needs.meta.outputs.version }}
+      VERSION_CODE: ${{ needs.meta.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Build the engine for Android
+        env:
+          CGO_ENABLED: "0"
+          GOOS: android
+          GOARCH: arm64
+        run: |
+          mkdir -p android/app/src/main/jniLibs/arm64-v8a
+          go build -trimpath -ldflags "-s -w -X ${PKG}.Version=${VERSION}" -o android/app/src/main/jniLibs/arm64-v8a/libgccserver.so .
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+      - name: Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;34.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      # Use the repository secrets when present so every release is signed by the same key (updates install over each
+      # other). Otherwise a throw-away key is generated: the APK installs fine, but a later build cannot update it.
+      - name: Signing key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS_IN: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ks="$RUNNER_TEMP/release.jks"
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$ks"
+            alias="$KEY_ALIAS_IN"; storepass="$KEYSTORE_PASS"; keypass="${KEY_PASS:-$KEYSTORE_PASS}"
+            echo "Using the repository signing key."
+          else
+            alias=release; storepass="$(openssl rand -hex 16)"; keypass="$storepass"
+            echo "::add-mask::$storepass"
+            keytool -genkeypair -keystore "$ks" -alias "$alias" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$storepass" -keypass "$keypass" -dname "CN=Gemini Config Checker"
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: signed with a throw-away key. Add the secrets to keep one signature across releases."
+          fi
+          {
+            echo "KEYSTORE_PATH=$ks"
+            echo "KEYSTORE_PASSWORD=$storepass"
+            echo "KEY_ALIAS=$alias"
+            echo "KEY_PASSWORD=$keypass"
+          } >> "$GITHUB_ENV"
+      - name: Build APK
+        run: gradle -p android assembleRelease --no-daemon --console=plain
+      - name: Package
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/gemini-config-checker_${VERSION}_android_arm64.apk"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: dist/*.apk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------------------------------------------
+  release:
+    name: Publish release
+    needs: [meta, web, desktop-windows, desktop-macos, desktop-linux, android]
+    if: needs.meta.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Checksums and release notes
+        run: |
+          (cd artifacts && sha256sum * > SHA256SUMS.txt)
+          {
+            # the matching CHANGELOG section, or a stub when it is missing
+            awk -v v="$VERSION" '
+              index($0, "## [" v "]") == 1 {on=1; next}
+              on && /^## \[/ {exit}
+              on {print}
+            ' CHANGELOG.md
+            echo
+            echo "## Downloads"
+            echo
+            echo "| File | Size |"
+            echo "|---|---|"
+            (cd artifacts && for f in $(ls | grep -v SHA256SUMS); do printf '| `%s` | %s |\n' "$f" "$(du -h "$f" | cut -f1)"; done)
+            echo
+            echo "Verify any download with \`SHA256SUMS.txt\`. Builds are unsigned (see the README for macOS and Windows notes)."
+            echo "The Android APK runs the connectivity mode only; the signed-in region check needs a desktop browser."
+          } > notes.md
+          cat notes.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.meta.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: ${{ needs.meta.outputs.tag }}
+          body_path: notes.md
+          prerelease: ${{ startsWith(needs.meta.outputs.version, '0.') }}
+          files: artifacts/*
+          fail_on_unmatched_files: true

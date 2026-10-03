@@ -1,0 +1,5 @@
+﻿dist/
+*.exe
+build/bin/
+*.log
+
