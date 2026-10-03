@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="../../releases"><img alt="Release" src="https://img.shields.io/github/v/release/MatinSenPai/Gemini-Config-Checker?include_prereleases&label=release"></a>
+  <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/MatinSenPai/Gemini-Config-Checker/total?label=downloads&color=ee2b38"></a>
   <a href="../../actions/workflows/ci.yml"><img alt="CI" src="https://github.com/MatinSenPai/Gemini-Config-Checker/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-111">
 </p>
